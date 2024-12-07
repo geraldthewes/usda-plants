@@ -3,6 +3,48 @@ import requests
 import os
 import json
 from tqdm import tqdm
+import argparse
+
+
+data_types = [
+    { "name": "distribution",
+      "path": "getDownloadDistributionDocumentation",
+      "data": '{{"Field":"Symbol","SortBy":"sortSciName","Offset":null,"MasterId":"{}"}}',
+      "accept": "text/csv"
+     },
+    {
+        "name":"images",
+        "path":"PlantImages?plantId={}",
+        "data": None,
+        "accept":'application/json'
+    },
+    {
+        "name": "wetland",
+        "path": "PlantWetland/{}",
+        "data": None,
+        "accept":'application/json'
+    },
+    {
+        "name": "related-links",
+        "path": "PlantRelatedLinks/{}",
+        "data": None,
+        "accept": 'application/json'
+    },
+    {
+        "name": "documentation",
+        "path": "PlantDocumentation/{}?orderBy=DataSourceString&offset=-1",
+        "data": None,
+        "accept": 'application/json'
+    },
+    {
+        "name": "characteristics",
+        "path": "PlantCharacteristics/{}",
+        "data": None,
+        "accept": "application/json"
+    }
+]
+
+
 
 def get_unique_symbols(csv_file):
     symbols = set()
@@ -28,21 +70,26 @@ def get_id_for_symbol(symbol):
 
 
 def get_json_data(id, property):
-    url = f'https://plantsservices.sc.egov.usda.gov/api/{property.path}' % (id)
-    headers = {'Accept': f'{property.accept}'}
-    if property.data:
-        post_data = json.load(property.data % (id))
+    print(property)
+    action = property["path"]
+    base = f'https://plantsservices.sc.egov.usda.gov/api/{action}' 
+    url =  base.format(id)
+    headers = {'Accept': f'{property["accept"]}'}
+    if property["data"]:
+        post = property["data"].format(id)
+        post_data = json.loads(post)
         headers['Content-Type'] = 'application/json'
         response = requests.put(url, data=post_data, headers=headers)
     else:
         response = requests.get(url, headers=headers)        
     if response.status_code == 200:
-        if property.accept == 'application/json':
+        if property["accept"] == 'application/json':
             return response.json()
         else:
             return response.text
     else:
-        print(f"Failed to get {data_type} for ID {id}. Status code: {response.status_code}")
+        name = property["name"]
+        print(f"Failed to get {name} for ID {id}. Status code: {response.status_code}")
         return None
 
 def download_images(symbol, images_json, save_dir):
@@ -61,76 +108,71 @@ def download_images(symbol, images_json, save_dir):
                 print(f"Failed to download image from {img_url}. Status code: {img_response.status_code}")
     
 
+def process_symbol(output_dir, symbol):
+    id = get_id_for_symbol(symbol)
+    if not id:
+        print(f'No id for sumbol {symbol}')
+        return False
+    symbol_dir = f'{output_dir}/{symbol}'
+    if not os.path.exists(symbol_dir):
+        os.makedirs(symbol_dir)
 
-def main(csv_file):
+    # Save the initial JSON
+    plant_profile = {
+        "name":"plant_profile",
+        "path":"PlantProfile?symbol={}",
+        "data": None,
+        "accept":'application/json'
+    }   
+    profile_json = get_json_data(symbol, plant_profile)
+    if profile_json:
+        with open(f'{symbol_dir}/{symbol}.json', 'w') as f:
+            json.dump(profile_json, f, indent=4)
+
+    for data_type in data_types:
+        data = get_json_data(id, data_type)
+        if data:
+            document = data_type["name"]
+            with open(f'{symbol_dir}/{document}.json', 'w') as f:
+                json.dump(data, f, indent=4)
+
+    # Assuming images JSON is obtained from one of the API calls
+    images_dir = f'{symbol_dir}/images'
+    if not os.path.exists(images_dir):
+        os.makedirs(images_dir)
+    images_file = f'{symbol_dir}/images.json'
+    print(images_file)
+    with open(images_file, 'r') as f:
+        images_json = json.load(f)
+        print(images_json)
+        download_images(symbol, images_json, images_dir)
+    return True
+                
+
+def process_list(output_dir, csv_file):
     symbols = get_unique_symbols(csv_file)
     
     for symbol in tqdm(symbols, desc="Processing symbols", unit="symbol"):
-        id = get_id_for_symbol(symbol)
-        if id:
-            # Assuming we have multiple data types to fetch
-            data_types = [
-                { "name": "distribution",
-                  "path": "getDownloadDistributionDocumentation"
-                  "data": '{"Field":"Symbol","SortBy":"sortSciName","Offset":null,"MasterId":"%"}',
-                  "accept", "text/csv"
-                 },
-                {
-                    "name":"images",
-                    "path":"PlantImages?plantId=%",
-                    "data": None,
-                    "accept":'application/json'
-                },
-                {
-                    "name": "wetland",
-                    "path": "PlantWetland/%"
-                    "data": None,
-                    "accept":'application/json'
-                },
-                {
-                    "name": "related-links",
-                    "path": "PlantRelatedLinks/%",
-                    "data": None,
-                    "accept": 'application/json'
-                },
-                {
-                    "name": "documentation",
-                    "path": "PlantDocumentation/%?orderBy=DataSourceString&offset=-1",
-                    "data": None,
-                    "accept": 'application/json'
-                },
-                {
-                    "name": "characteristics",
-                    "path": "PlantCharacteristics/%",
-                    "data": None,
-                    "accept": 'application/json"
-                }
-            ]
+        process_symbol(output_dir, symbol)
+        
+ 
 
-            symbol_dir = f'{symbol}'
-            if not os.path.exists(symbol_dir):
-                os.makedirs(symbol_dir)
-            
-            # Save the initial JSON
-            profile_json = get_json_data(id, 'PlantProfile')
-            if profile_json:
-                with open(f'{symbol_dir}/{symbol}.json', 'w') as f:
-                    json.dump(profile_json, f, indent=4)
-            
-            for data_type in data_types:
-                data = get_json_data(id, data_type)
-                if data:
-                    with open(f'{symbol_dir}/data_{data_type}.json', 'w') as f:
-                        json.dump(data, f, indent=4)
-            
-            # Assuming images JSON is obtained from one of the API calls
-            images_json = get_json_data(id, 'Images')
-            if images_json:
-                images_dir = f'{symbol_dir}/images'
-                with open(f'{images_dir}/images.json', 'w') as f:
-                    json.dump(images_json, f, indent=4)
-                download_images(symbol, images_json, images_dir)
 
 
 if __name__ == '__main__':
-    main('path_to_csv.csv')
+    parser = argparse.ArgumentParser(description='Download plant data from USDA.')
+    
+    # Adding arguments
+    parser.add_argument('-s', '--symbol', help='Symbol to process')
+    parser.add_argument('-o', '--output-dir', default='output', help='Output directory (default: .)')
+    parser.add_argument('-i', '--csv-file', default='plants.csv', help='List of plant symbols')    
+    
+    args = parser.parse_args()
+    
+    if args.symbol:
+        print(f"Processing symbol: {args.symbol}")        
+        process_symbol(args.output_dir, args.symbol)
+    else:
+        print(f"Processing list from CSV: {args.csv_file}")        
+        process_list(args.output_dir, args.csv_file)
+
