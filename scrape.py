@@ -4,6 +4,7 @@ import os
 import json
 from tqdm import tqdm
 import argparse
+import time
 from requests_toolbelt.utils import dump
 
 
@@ -52,10 +53,10 @@ def get_unique_symbols(csv_file):
     with open(csv_file, newline='') as f:
         reader = csv.DictReader(f)
         for row in reader:
-            symbol = row.get('symbol')  # Ensure you are getting the correct column name
+            symbol = row.get('Symbol')  # Ensure you are getting the correct column name
             if symbol:
                 symbols.add(symbol.strip())
-    return symbols
+    return sorted(symbols)
 
 
 def get_id_for_symbol(symbol):
@@ -175,11 +176,20 @@ def process_symbol(output_dir, symbol, debug=False):
 
 def process_list(output_dir, csv_file):
     symbols = get_unique_symbols(csv_file)
+    total = len(symbols)
+    errors = 0
+    print(f'We have {total} symbols')
     
     for symbol in tqdm(symbols, desc="Processing symbols", unit="symbol"):
-        process_symbol(output_dir, symbol)
+        #print(symbol)
+        try:
+            process_symbol(output_dir, symbol)
+        except:
+            print(f'Problem processing {symbol}')
+            errors = errors + 1
+        time.sleep(1) # Throttle
         
- 
+    print(f'{errors}/{total} errors')
 
 
 
