@@ -166,11 +166,16 @@ def process_symbol(output_dir, symbol, debug=False):
     if not os.path.exists(images_dir):
         os.makedirs(images_dir)
     images_file = f'{symbol_dir}/images.json'
-    print(images_file)
-    with open(images_file, 'r') as f:
-        images_json = json.load(f)
-        print(images_json)
-        download_images(symbol, images_json, images_dir)
+    if debug:
+        print(images_file)
+    try:
+        with open(images_file, 'r') as f:
+            images_json = json.load(f)
+            if debug:
+                print(images_json)
+            download_images(symbol, images_json, images_dir)
+    except:
+        print(f'No images for {symbol}')
     return True
                 
 
