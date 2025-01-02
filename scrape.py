@@ -47,6 +47,7 @@ data_types = [
 ]
 
 image_path='https://plants.sc.egov.usda.gov/'
+guide_path='https://plants.usda.gov/'
 
 def get_unique_symbols(csv_file):
     symbols = set()
@@ -135,6 +136,22 @@ def download_images(symbol, images_json, save_dir):
                 if img_url:
                     download_single_image(save_dir, img_url)
 
+
+def download_plant_guides(symbol, symbol_dir, plant_guide_urls):
+    for doc in plant_guide_urls:
+        doc_url = f'{guide_path}/{doc}'
+        #print(doc_url)
+        doc_response = requests.get(doc_url)
+        if doc_response.status_code == 200:
+            doc_name = os.path.join(symbol_dir, os.path.basename(doc_url))
+            with open(doc_name, 'wb') as f:
+                f.write(doc_response.content)
+        else:
+            print(f"Failed to download guide from {doc_url}. Status code: {doc_response.status_code}")
+            
+        
+    
+                    
 def process_symbol(output_dir, symbol, debug=False):
     id = get_id_for_symbol(symbol)
     if not id:
@@ -178,6 +195,12 @@ def process_symbol(output_dir, symbol, debug=False):
             download_images(symbol, images_json, images_dir)
     except:
         print(f'No images for {symbol}')
+
+    plant_guide_urls = profile_json.get("PlantGuideUrls")
+    #print(plant_guide_urls)
+    if plant_guide_urls:
+        download_plant_guides(symbol, symbol_dir, plant_guide_urls)
+        
     return True
                 
 
