@@ -125,13 +125,15 @@ def download_single_image(save_dir, img_url):
     
 def download_images(symbol, images_json, save_dir):
     for img_data in tqdm(images_json, desc=f"Downloading images for {symbol}", unit="image"):
-        for (image) in ["StandardSizeImageLibraryPath",
-                         "ThumbnailSizeImageLibraryPath",
-                         "LargeSizeImageLibraryPath",
-                         "OriginalSizeImageLibraryPath"]:
-            img_url = img_data.get(image)
-            if img_url:
-                download_single_image(save_dir, img_url)
+        if not img_data.get('Copyright'):
+            # Only download image with no copyright
+            for (image) in ["StandardSizeImageLibraryPath",
+                            "ThumbnailSizeImageLibraryPath",
+                            "LargeSizeImageLibraryPath",
+                            "OriginalSizeImageLibraryPath"]:
+                img_url = img_data.get(image)
+                if img_url:
+                    download_single_image(save_dir, img_url)
 
 def process_symbol(output_dir, symbol, debug=False):
     id = get_id_for_symbol(symbol)
